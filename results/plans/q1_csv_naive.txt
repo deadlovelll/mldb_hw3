@@ -1,0 +1,61 @@
+SELECT pickup_date, count(*) AS trips, round(sum(total_amount), 2) AS revenue,
+                      round(avg(trip_distance), 2) AS avg_distance
+               FROM (SELECT * FROM trips_csv WHERE tpep_pickup_datetime >= TIMESTAMP'2024-03-01 00:00:00' AND tpep_pickup_datetime < TIMESTAMP'2024-04-01 00:00:00' ) t GROUP BY pickup_date ORDER BY pickup_date
+
+== Physical Plan ==
+AdaptiveSparkPlan (9)
++- Sort (8)
+   +- Exchange (7)
+      +- HashAggregate (6)
+         +- Exchange (5)
+            +- HashAggregate (4)
+               +- Project (3)
+                  +- Filter (2)
+                     +- Scan csv  (1)
+
+
+(1) Scan csv 
+Output [4]: [tpep_pickup_datetime#21, trip_distance#24, total_amount#36, pickup_date#39]
+Batched: false
+Location: InMemoryFileIndex [file:/Users/timofeiivankov/Desktop/mldb_hw3/data/csv]
+PushedFilters: [IsNotNull(tpep_pickup_datetime), GreaterThanOrEqual(tpep_pickup_datetime,2024-03-01 00:00:00.0), LessThan(tpep_pickup_datetime,2024-04-01 00:00:00.0)]
+ReadSchema: struct<tpep_pickup_datetime:timestamp,trip_distance:double,total_amount:double,pickup_date:date>
+
+(2) Filter
+Input [4]: [tpep_pickup_datetime#21, trip_distance#24, total_amount#36, pickup_date#39]
+Condition : ((isnotnull(tpep_pickup_datetime#21) AND (tpep_pickup_datetime#21 >= 2024-03-01 00:00:00)) AND (tpep_pickup_datetime#21 < 2024-04-01 00:00:00))
+
+(3) Project
+Output [3]: [trip_distance#24, total_amount#36, pickup_date#39]
+Input [4]: [tpep_pickup_datetime#21, trip_distance#24, total_amount#36, pickup_date#39]
+
+(4) HashAggregate
+Input [3]: [trip_distance#24, total_amount#36, pickup_date#39]
+Keys [1]: [pickup_date#39]
+Functions [3]: [partial_count(1), partial_sum(total_amount#36), partial_avg(trip_distance#24)]
+Aggregate Attributes [4]: [count#880L, sum#881, sum#882, count#883L]
+Results [5]: [pickup_date#39, count#884L, sum#885, sum#886, count#887L]
+
+(5) Exchange
+Input [5]: [pickup_date#39, count#884L, sum#885, sum#886, count#887L]
+Arguments: hashpartitioning(pickup_date#39, 200), ENSURE_REQUIREMENTS, [plan_id=1625]
+
+(6) HashAggregate
+Input [5]: [pickup_date#39, count#884L, sum#885, sum#886, count#887L]
+Keys [1]: [pickup_date#39]
+Functions [3]: [count(1), sum(total_amount#36), avg(trip_distance#24)]
+Aggregate Attributes [3]: [count(1)#877L, sum(total_amount#36)#878, avg(trip_distance#24)#879]
+Results [4]: [pickup_date#39, count(1)#877L AS trips#869L, round(sum(total_amount#36)#878, 2) AS revenue#870, round(avg(trip_distance#24)#879, 2) AS avg_distance#871]
+
+(7) Exchange
+Input [4]: [pickup_date#39, trips#869L, revenue#870, avg_distance#871]
+Arguments: rangepartitioning(pickup_date#39 ASC NULLS FIRST, 200), ENSURE_REQUIREMENTS, [plan_id=1628]
+
+(8) Sort
+Input [4]: [pickup_date#39, trips#869L, revenue#870, avg_distance#871]
+Arguments: [pickup_date#39 ASC NULLS FIRST], true, 0
+
+(9) AdaptiveSparkPlan
+Output [4]: [pickup_date#39, trips#869L, revenue#870, avg_distance#871]
+Arguments: isFinalPlan=false
+

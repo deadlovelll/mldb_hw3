@@ -1,0 +1,61 @@
+SELECT hour(tpep_pickup_datetime) AS hour, payment_type, count(*) AS trips,
+                      round(avg(tip_amount / fare_amount) * 100, 2) AS tip_pct
+               FROM (SELECT * FROM trips_parquet WHERE tpep_pickup_datetime >= TIMESTAMP'2024-05-13 00:00:00' AND tpep_pickup_datetime < TIMESTAMP'2024-05-20 00:00:00' AND fare_amount > 0) t GROUP BY 1, 2 ORDER BY 1, 2
+
+== Physical Plan ==
+AdaptiveSparkPlan (9)
++- Sort (8)
+   +- Exchange (7)
+      +- HashAggregate (6)
+         +- Exchange (5)
+            +- HashAggregate (4)
+               +- Project (3)
+                  +- Filter (2)
+                     +- Scan parquet  (1)
+
+
+(1) Scan parquet 
+Output [5]: [tpep_pickup_datetime#41, payment_type#49L, fare_amount#50, tip_amount#53, pickup_date#59]
+Batched: true
+Location: InMemoryFileIndex [file:/Users/timofeiivankov/Desktop/mldb_hw3/data/parquet]
+PushedFilters: [IsNotNull(tpep_pickup_datetime), IsNotNull(fare_amount), GreaterThanOrEqual(tpep_pickup_datetime,2024-05-13 00:00:00.0), LessThan(tpep_pickup_datetime,2024-05-20 00:00:00.0), GreaterThan(fare_amount,0.0)]
+ReadSchema: struct<tpep_pickup_datetime:timestamp,payment_type:bigint,fare_amount:double,tip_amount:double>
+
+(2) Filter
+Input [5]: [tpep_pickup_datetime#41, payment_type#49L, fare_amount#50, tip_amount#53, pickup_date#59]
+Condition : ((((isnotnull(tpep_pickup_datetime#41) AND isnotnull(fare_amount#50)) AND (tpep_pickup_datetime#41 >= 2024-05-13 00:00:00)) AND (tpep_pickup_datetime#41 < 2024-05-20 00:00:00)) AND (fare_amount#50 > 0.0))
+
+(3) Project
+Output [4]: [payment_type#49L, fare_amount#50, tip_amount#53, hour(tpep_pickup_datetime#41, Some(UTC)) AS _groupingexpression#1949]
+Input [5]: [tpep_pickup_datetime#41, payment_type#49L, fare_amount#50, tip_amount#53, pickup_date#59]
+
+(4) HashAggregate
+Input [4]: [payment_type#49L, fare_amount#50, tip_amount#53, _groupingexpression#1949]
+Keys [2]: [_groupingexpression#1949, payment_type#49L]
+Functions [2]: [partial_count(1), partial_avg((tip_amount#53 / fare_amount#50))]
+Aggregate Attributes [3]: [count#1950L, sum#1951, count#1952L]
+Results [5]: [_groupingexpression#1949, payment_type#49L, count#1953L, sum#1954, count#1955L]
+
+(5) Exchange
+Input [5]: [_groupingexpression#1949, payment_type#49L, count#1953L, sum#1954, count#1955L]
+Arguments: hashpartitioning(_groupingexpression#1949, payment_type#49L, 200), ENSURE_REQUIREMENTS, [plan_id=5163]
+
+(6) HashAggregate
+Input [5]: [_groupingexpression#1949, payment_type#49L, count#1953L, sum#1954, count#1955L]
+Keys [2]: [_groupingexpression#1949, payment_type#49L]
+Functions [2]: [count(1), avg((tip_amount#53 / fare_amount#50))]
+Aggregate Attributes [2]: [count(1)#1947L, avg((tip_amount#53 / fare_amount#50))#1948]
+Results [4]: [_groupingexpression#1949 AS hour#1939, payment_type#49L, count(1)#1947L AS trips#1940L, round((avg((tip_amount#53 / fare_amount#50))#1948 * 100.0), 2) AS tip_pct#1941]
+
+(7) Exchange
+Input [4]: [hour#1939, payment_type#49L, trips#1940L, tip_pct#1941]
+Arguments: rangepartitioning(hour#1939 ASC NULLS FIRST, payment_type#49L ASC NULLS FIRST, 200), ENSURE_REQUIREMENTS, [plan_id=5166]
+
+(8) Sort
+Input [4]: [hour#1939, payment_type#49L, trips#1940L, tip_pct#1941]
+Arguments: [hour#1939 ASC NULLS FIRST, payment_type#49L ASC NULLS FIRST], true, 0
+
+(9) AdaptiveSparkPlan
+Output [4]: [hour#1939, payment_type#49L, trips#1940L, tip_pct#1941]
+Arguments: isFinalPlan=false
+

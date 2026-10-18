@@ -1,0 +1,5 @@
+storage,columns,median_s,runs_s,input_mb,files_read,partitions_read,size_of_files
+csv,все 20,8.984,9.015 / 8.918 / 9.331 / 8.984 / 8.117,2376.6,8,-,2.3 GiB
+csv,"pickup_date, total_amount, trip_distance",4.052,3.882 / 4.141 / 4.031 / 4.052 / 4.210,2376.6,8,-,2.3 GiB
+parquet,все 20,0.409,0.376 / 0.391 / 0.440 / 0.409 / 0.427,68.8,31,31,68.0 MiB
+parquet,"pickup_date, total_amount, trip_distance",0.153,0.154 / 0.143 / 0.165 / 0.150 / 0.153,14.1,31,31,68.0 MiB

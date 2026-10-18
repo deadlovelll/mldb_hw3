@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: hw3
+      POSTGRES_PASSWORD: hw3
+      POSTGRES_DB: hw3
+    volumes:
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./results:/results:ro
+    healthcheck:
+      test: pg_isready -h localhost -U hw3 -d hw3
+      interval: 2s
+      retries: 30
+
+  metabase:
+    image: metabase/metabase:v0.64.2.7
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: curl -sf http://localhost:3000/api/health
+      interval: 5s
+      retries: 60
+
+  metabase-init:
+    image: python:3.14-slim
+    depends_on:
+      metabase:
+        condition: service_healthy
+    volumes:
+      - ./infra/metabase_init.py:/metabase_init.py:ro
+    command: python -u /metabase_init.py

@@ -1,0 +1,95 @@
+SELECT z.Borough, z.Zone, count(*) AS trips, round(sum(t.total_amount), 2) AS revenue
+               FROM (SELECT PULocationID, total_amount, trip_distance FROM trips_parquet WHERE pickup_date BETWEEN DATE'2024-04-01' AND DATE'2024-06-30' AND trip_distance > 0) t JOIN zones z ON t.PULocationID = z.LocationID
+               GROUP BY 1, 2 ORDER BY revenue DESC LIMIT 10
+
+== Physical Plan ==
+AdaptiveSparkPlan (15)
++- TakeOrderedAndProject (14)
+   +- HashAggregate (13)
+      +- Exchange (12)
+         +- HashAggregate (11)
+            +- Project (10)
+               +- BroadcastHashJoin Inner BuildRight (9)
+                  :- Project (3)
+                  :  +- Filter (2)
+                  :     +- Scan parquet  (1)
+                  +- BroadcastExchange (8)
+                     +- Filter (7)
+                        +- InMemoryTableScan (4)
+                              +- InMemoryRelation (5)
+                                    +- Scan csv  (6)
+
+
+(1) Scan parquet 
+Output [4]: [trip_distance#44, PULocationID#47, total_amount#56, pickup_date#59]
+Batched: true
+Location: InMemoryFileIndex [file:/Users/timofeiivankov/Desktop/mldb_hw3/data/parquet]
+PartitionFilters: [isnotnull(pickup_date#59), (pickup_date#59 >= 2024-04-01), (pickup_date#59 <= 2024-06-30)]
+PushedFilters: [IsNotNull(trip_distance), GreaterThan(trip_distance,0.0), IsNotNull(PULocationID)]
+ReadSchema: struct<trip_distance:double,PULocationID:int,total_amount:double>
+
+(2) Filter
+Input [4]: [trip_distance#44, PULocationID#47, total_amount#56, pickup_date#59]
+Condition : ((isnotnull(trip_distance#44) AND (trip_distance#44 > 0.0)) AND isnotnull(PULocationID#47))
+
+(3) Project
+Output [2]: [PULocationID#47, total_amount#56]
+Input [4]: [trip_distance#44, PULocationID#47, total_amount#56, pickup_date#59]
+
+(4) InMemoryTableScan
+Output [3]: [LocationID#77, Borough#78, Zone#79]
+Arguments: [LocationID#77, Borough#78, Zone#79], [isnotnull(LocationID#77)]
+
+(5) InMemoryRelation
+Arguments: [LocationID#77, Borough#78, Zone#79, service_zone#80], StorageLevel(disk, memory, deserialized, 1 replicas)
+
+(6) Scan csv 
+Output [4]: [LocationID#77, Borough#78, Zone#79, service_zone#80]
+Batched: false
+Location: InMemoryFileIndex [file:/Users/timofeiivankov/Desktop/mldb_hw3/data/raw/taxi_zone_lookup.csv]
+ReadSchema: struct<LocationID:int,Borough:string,Zone:string,service_zone:string>
+
+(7) Filter
+Input [3]: [LocationID#77, Borough#78, Zone#79]
+Condition : isnotnull(LocationID#77)
+
+(8) BroadcastExchange
+Input [3]: [LocationID#77, Borough#78, Zone#79]
+Arguments: HashedRelationBroadcastMode(List(cast(input[0, int, false] as bigint)),false), [plan_id=9994]
+
+(9) BroadcastHashJoin
+Left keys [1]: [PULocationID#47]
+Right keys [1]: [LocationID#77]
+Join type: Inner
+Join condition: None
+
+(10) Project
+Output [3]: [total_amount#56, Borough#78, Zone#79]
+Input [5]: [PULocationID#47, total_amount#56, LocationID#77, Borough#78, Zone#79]
+
+(11) HashAggregate
+Input [3]: [total_amount#56, Borough#78, Zone#79]
+Keys [2]: [Borough#78, Zone#79]
+Functions [2]: [partial_count(1), partial_sum(total_amount#56)]
+Aggregate Attributes [2]: [count#4565L, sum#4566]
+Results [4]: [Borough#78, Zone#79, count#4567L, sum#4568]
+
+(12) Exchange
+Input [4]: [Borough#78, Zone#79, count#4567L, sum#4568]
+Arguments: hashpartitioning(Borough#78, Zone#79, 200), ENSURE_REQUIREMENTS, [plan_id=9999]
+
+(13) HashAggregate
+Input [4]: [Borough#78, Zone#79, count#4567L, sum#4568]
+Keys [2]: [Borough#78, Zone#79]
+Functions [2]: [count(1), sum(total_amount#56)]
+Aggregate Attributes [2]: [count(1)#4503L, sum(total_amount#56)#4504]
+Results [4]: [Borough#78, Zone#79, count(1)#4503L AS trips#4496L, round(sum(total_amount#56)#4504, 2) AS revenue#4497]
+
+(14) TakeOrderedAndProject
+Input [4]: [Borough#78, Zone#79, trips#4496L, revenue#4497]
+Arguments: 10, [revenue#4497 DESC NULLS LAST], [Borough#78, Zone#79, trips#4496L, revenue#4497]
+
+(15) AdaptiveSparkPlan
+Output [4]: [Borough#78, Zone#79, trips#4496L, revenue#4497]
+Arguments: isFinalPlan=false
+

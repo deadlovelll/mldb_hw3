@@ -1,0 +1,94 @@
+SELECT z.Borough, z.Zone, count(*) AS trips, round(sum(t.total_amount), 2) AS revenue
+               FROM (SELECT * FROM trips_csv WHERE tpep_pickup_datetime >= TIMESTAMP'2024-04-01 00:00:00' AND tpep_pickup_datetime < TIMESTAMP'2024-07-01 00:00:00' AND trip_distance > 0) t JOIN zones z ON t.PULocationID = z.LocationID
+               GROUP BY 1, 2 ORDER BY revenue DESC LIMIT 10
+
+== Physical Plan ==
+AdaptiveSparkPlan (15)
++- TakeOrderedAndProject (14)
+   +- HashAggregate (13)
+      +- Exchange (12)
+         +- HashAggregate (11)
+            +- Project (10)
+               +- BroadcastHashJoin Inner BuildRight (9)
+                  :- Project (3)
+                  :  +- Filter (2)
+                  :     +- Scan csv  (1)
+                  +- BroadcastExchange (8)
+                     +- Filter (7)
+                        +- InMemoryTableScan (4)
+                              +- InMemoryRelation (5)
+                                    +- Scan csv  (6)
+
+
+(1) Scan csv 
+Output [4]: [tpep_pickup_datetime#21, trip_distance#24, PULocationID#27, total_amount#36]
+Batched: false
+Location: InMemoryFileIndex [file:/Users/timofeiivankov/Desktop/mldb_hw3/data/csv]
+PushedFilters: [IsNotNull(tpep_pickup_datetime), IsNotNull(trip_distance), GreaterThanOrEqual(tpep_pickup_datetime,2024-04-01 00:00:00.0), LessThan(tpep_pickup_datetime,2024-07-01 00:00:00.0), GreaterThan(trip_distance,0.0), IsNotNull(PULocationID)]
+ReadSchema: struct<tpep_pickup_datetime:timestamp,trip_distance:double,PULocationID:int,total_amount:double>
+
+(2) Filter
+Input [4]: [tpep_pickup_datetime#21, trip_distance#24, PULocationID#27, total_amount#36]
+Condition : (((((isnotnull(tpep_pickup_datetime#21) AND isnotnull(trip_distance#24)) AND (tpep_pickup_datetime#21 >= 2024-04-01 00:00:00)) AND (tpep_pickup_datetime#21 < 2024-07-01 00:00:00)) AND (trip_distance#24 > 0.0)) AND isnotnull(PULocationID#27))
+
+(3) Project
+Output [2]: [PULocationID#27, total_amount#36]
+Input [4]: [tpep_pickup_datetime#21, trip_distance#24, PULocationID#27, total_amount#36]
+
+(4) InMemoryTableScan
+Output [3]: [LocationID#77, Borough#78, Zone#79]
+Arguments: [LocationID#77, Borough#78, Zone#79], [isnotnull(LocationID#77)]
+
+(5) InMemoryRelation
+Arguments: [LocationID#77, Borough#78, Zone#79, service_zone#80], StorageLevel(disk, memory, deserialized, 1 replicas)
+
+(6) Scan csv 
+Output [4]: [LocationID#77, Borough#78, Zone#79, service_zone#80]
+Batched: false
+Location: InMemoryFileIndex [file:/Users/timofeiivankov/Desktop/mldb_hw3/data/raw/taxi_zone_lookup.csv]
+ReadSchema: struct<LocationID:int,Borough:string,Zone:string,service_zone:string>
+
+(7) Filter
+Input [3]: [LocationID#77, Borough#78, Zone#79]
+Condition : isnotnull(LocationID#77)
+
+(8) BroadcastExchange
+Input [3]: [LocationID#77, Borough#78, Zone#79]
+Arguments: HashedRelationBroadcastMode(List(cast(input[0, int, false] as bigint)),false), [plan_id=6436]
+
+(9) BroadcastHashJoin
+Left keys [1]: [PULocationID#27]
+Right keys [1]: [LocationID#77]
+Join type: Inner
+Join condition: None
+
+(10) Project
+Output [3]: [total_amount#36, Borough#78, Zone#79]
+Input [5]: [PULocationID#27, total_amount#36, LocationID#77, Borough#78, Zone#79]
+
+(11) HashAggregate
+Input [3]: [total_amount#36, Borough#78, Zone#79]
+Keys [2]: [Borough#78, Zone#79]
+Functions [2]: [partial_count(1), partial_sum(total_amount#36)]
+Aggregate Attributes [2]: [count#2282L, sum#2283]
+Results [4]: [Borough#78, Zone#79, count#2284L, sum#2285]
+
+(12) Exchange
+Input [4]: [Borough#78, Zone#79, count#2284L, sum#2285]
+Arguments: hashpartitioning(Borough#78, Zone#79, 200), ENSURE_REQUIREMENTS, [plan_id=6441]
+
+(13) HashAggregate
+Input [4]: [Borough#78, Zone#79, count#2284L, sum#2285]
+Keys [2]: [Borough#78, Zone#79]
+Functions [2]: [count(1), sum(total_amount#36)]
+Aggregate Attributes [2]: [count(1)#2220L, sum(total_amount#36)#2221]
+Results [4]: [Borough#78, Zone#79, count(1)#2220L AS trips#2213L, round(sum(total_amount#36)#2221, 2) AS revenue#2214]
+
+(14) TakeOrderedAndProject
+Input [4]: [Borough#78, Zone#79, trips#2213L, revenue#2214]
+Arguments: 10, [revenue#2214 DESC NULLS LAST], [Borough#78, Zone#79, trips#2213L, revenue#2214]
+
+(15) AdaptiveSparkPlan
+Output [4]: [Borough#78, Zone#79, trips#2213L, revenue#2214]
+Arguments: isFinalPlan=false
+
